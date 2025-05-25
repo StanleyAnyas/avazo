@@ -366,5 +366,53 @@ pub async fn get_active_reserve(pool: &MySqlPool, user_id: i32) ->Result<ActiveR
 }
 
 //get_all_donations
+pub async fn get_all_donations(pool: &MySqlPool, user_id: i32) ->Result<Vec<Food>, sqlx::Error>{
+    let all_donations = sqlx::query_as!(
+        Food,
+        r#"
+            SELECT * 
+            FROM food
+            WHERE u.user_id = ?
+        "#,
+        user_id
+    ).fetch_all(pool)
+    .await?;
+
+    Ok(all_donations)
+}
+
+/*
+pub struct FoodDetail {
+    pub title: String,
+    pub description: String,
+    pub is_free: bool,
+    pub pickup_time: String,
+    pub pickup_address: String,
+    pub user_id: i32,
+    pub image: String,
+}
+*/
+
+//update_donation
+pub async fn update_donation(pool: &MySqlPool, food: &FoodDetail) -> Result<(), sqlx::Error> {
+    sqlx::query!(
+        r#"
+            UPDATE food 
+            SET title = ? description = ? is_free = ? pickup_time = ? pickup_address = ? image = ?
+            WHERE id = ?
+        "#,
+        food.title,
+        food.description,
+        food.is_free,
+        food.pickup_time,
+        food.pickup_address,
+        food.image,
+        food.user_id
+    )
+    .execute(pool)
+    .await?;
+
+    Ok(())
+}
 
 // get_active_donations

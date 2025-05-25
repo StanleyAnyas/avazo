@@ -1,4 +1,5 @@
 use actix_web::{web, App, HttpServer};
+
 // use functions::generate_code;
 use std::env;
 use dotenvy::dotenv;
@@ -38,6 +39,8 @@ async fn server() -> std::io::Result<()>{
         .service(handlers::send_verify_mail)
         .service(handlers::edit_profile_pic)
         .service(handlers::delete_user)
+        .service(handlers::get_donations)
+        .service(handlers::edit_donation)
         // .service(handlers::)
     })
     .bind(addrs)?
