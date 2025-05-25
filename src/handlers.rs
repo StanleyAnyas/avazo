@@ -1,11 +1,20 @@
+
 use actix_web::{get, post, web, HttpResponse, Responder};
+// use rand::rand_core::impls;
+// use rand::rand_core::impls;
 use sqlx::{MySqlPool};
-use crate::{db::{add_user_code, check_if_email_exists, create_new_user, delete_food, edit_profile_picture, get_all_food, increment_user_food_count, insert_food, login_user, update_verified, verify_user_code, FoodDetail, LoginDetail, NewUserDetails, PictureDetails, UserCodeDetails}, functions::{compare_password, generate_code, send_mail}};
+use crate::{db::{add_user_code, check_if_email_exists, create_new_user, delete_food, delete_user_account, edit_profile_picture, edit_user_profile, get_all_food, increment_user_food_count, insert_food, login_user, update_verified, verify_user_code, change_email_verified, EditUserDetails, FoodDetail, LoginDetail, NewUserDetails, PictureDetails, UserCodeDetails}, functions::{compare_password, generate_code, send_goodbye_mail, send_mail}};
 
 #[derive(serde::Deserialize)]
 struct FoodId{
     food_id: i32
 }
+#[derive(serde::Deserialize, serde::Serialize)]
+struct MajesticRes{
+    user_id: i32,
+    user_email: String
+}
+
 
 #[derive(serde::Deserialize)]
 struct VerifyMail{
@@ -29,6 +38,7 @@ async fn add_food(pool: web::Data<MySqlPool>, food: web::Json<FoodDetail>) -> im
                     return HttpResponse::InternalServerError()
                         .body(format!("There was an error: {}", err));
                 }
+                println!("aggiunto cibo");
                 HttpResponse::Ok().json(id)
         }
         Err(err) => HttpResponse::InternalServerError().body(format!("There was an error: {}", err))
@@ -110,7 +120,7 @@ async fn verify_code(pool: web::Data<MySqlPool>, code: web::Query<UserCodeDetail
 #[get("/send_verify_mail")]
 async fn send_verify_mail(pool: web::Data<MySqlPool>, email: web::Query<VerifyMail>) -> impl Responder{
     let code = generate_code();
-    println!("{}", code);
+    // println!("{}", code);
     match add_user_code(&pool, code.clone(), &email.user_mail).await {
         Ok(_) => {
             match send_mail(&email.user_mail, &code).await {
@@ -119,5 +129,39 @@ async fn send_verify_mail(pool: web::Data<MySqlPool>, email: web::Query<VerifyMa
             }   
         }
         Err(err) => HttpResponse::InternalServerError().body(format!("there was an error qui: {}", err))
+    }
+}
+
+#[get("/delete_user")]
+async fn delete_user(pool: web::Data<MySqlPool>, user_details: web::Query<MajesticRes>) -> impl Responder{
+    let id = user_details.user_id;
+    let user_mail = user_details.user_email.clone();
+    match delete_user_account(&pool, id).await {
+        Ok(_) => {
+            match send_goodbye_mail(user_mail).await {
+                Ok(_) => HttpResponse::Ok().body("user dleted successfully"),
+                Err(err) => HttpResponse::ExpectationFailed().body(format!("couldn't send mail: {}", err))
+            }
+        }
+        Err(err) => HttpResponse::InternalServerError().body(format!("there was an error: {}", err))
+    }
+}
+
+#[post("/edit_user_profile")]
+async fn edit_profile(pool: web::Data<MySqlPool>, user_edit_details: web::Json<EditUserDetails>) -> impl Responder {
+    let user_edit_details = user_edit_details.into_inner();
+    match edit_user_profile(&pool, &user_edit_details).await {
+        Ok(_) => {
+            if user_edit_details.email_was_changed {
+                match change_email_verified(&pool, &user_edit_details.email).await {
+                    Ok(_) => HttpResponse::Ok().json(user_edit_details),
+                    Err(err) => HttpResponse::InternalServerError().body(format!("there was an error {}", err))
+                }
+            }else{
+                return HttpResponse::Ok().json(user_edit_details)
+            }
+            
+        }
+        Err(err) => HttpResponse::InternalServerError().body(format!("there was an error: {}", err))
     }
 }

@@ -37,6 +37,7 @@ async fn server() -> std::io::Result<()>{
         .service(handlers::verify_code)
         .service(handlers::send_verify_mail)
         .service(handlers::edit_profile_pic)
+        .service(handlers::delete_user)
         // .service(handlers::)
     })
     .bind(addrs)?

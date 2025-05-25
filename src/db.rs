@@ -1,3 +1,4 @@
+use actix_web::cookie::time::format_description::well_known::iso8601::OffsetPrecision;
 use sqlx::{FromRow, MySqlPool};
 use crate::functions::{check_code, hash_password};
 use serde_with::{serde_as, base64::Base64};
@@ -8,6 +9,7 @@ pub struct FoodDetail {
     pub description: String,
     pub is_free: bool,
     pub pickup_time: String,
+    pub pickup_address: String,
     pub user_id: i32,
     pub image: String,
 }
@@ -19,8 +21,29 @@ pub struct Food {
     pub description: Option<String>,
     pub is_free: Option<i8>,
     pub pickup_time: Option<String>,
+    pub pickup_address: Option<String>,
     pub user_id: Option<i32>,
     pub image: Option<Vec<u8>> 
+}
+
+#[derive(Debug, FromRow, serde::Serialize)]
+pub struct AllReserves{
+    pub food_id: i32,
+    pub title: Option<String>,
+    pub description: Option<String>,
+    pub first_name: Option<String>,
+    pub image: Option<Vec<u8>>
+}
+
+#[derive(Debug, FromRow, serde::Serialize)]
+pub struct ActiveReserve{
+    pub food_id: i32,
+    pub title: Option<String>,
+    pub description: Option<String>,
+    pub first_name: Option<String>,
+    pub image: Option<Vec<u8>>,
+    pub pickup_time: Option<String>,
+    pub pickup_address: Option<String>
 }
 
 #[derive(Debug, FromRow, serde::Serialize)]
@@ -72,18 +95,34 @@ pub struct UserCodeDetails{
     pub user_email: String
 }
 
+#[derive(serde::Deserialize, serde::Serialize)]
+pub struct EditUserDetails{
+    pub user_id: i32,
+    pub first_name: String,
+    pub last_name: String,
+    pub email: String,
+    pub email_was_changed: bool
+}
+
+#[derive(serde::Deserialize, serde::Serialize)]
+pub struct ReserveDetails{
+    pub user_id: i32,
+    pub food_id: i32
+}
+
 pub async fn insert_food(pool: &MySqlPool, food: &FoodDetail) -> Result<u64, sqlx::Error>{
     let result = sqlx::query!(
         r#"
-            INSERT INTO foods (title, description, is_free, pickup_time, user_id, image)
-            VALUES(?, ?, ?, ?, ?, ?)
+            INSERT INTO foods (title, description, is_free, pickup_time, user_id, image, pickup_address)
+            VALUES(?, ?, ?, ?, ?, ?, ?)
         "#,
         food.title,
-        food.description, 
+        food.description,
         food.is_free,
-        food.pickup_time, 
+        food.pickup_time,
         food.user_id,
-        food.image
+        food.image,
+        food.pickup_address
     )
     .execute(pool)
     .await?;
@@ -95,7 +134,7 @@ pub async fn insert_food(pool: &MySqlPool, food: &FoodDetail) -> Result<u64, sql
 pub async fn increment_user_food_count(pool: &MySqlPool, user_id: i32) -> Result<(), sqlx::Error> {
     sqlx::query!(
         r#"
-            UPDATE users SET num_of_food_added = num_of_food_added + 1 WHERE id = ?
+            UPDATE users SET num_of_food_added = num_of_food_added + 1 WHERE id = ? AND is_active = 1 
         "#,
         user_id
     )
@@ -103,13 +142,13 @@ pub async fn increment_user_food_count(pool: &MySqlPool, user_id: i32) -> Result
     .await?;
 
     Ok(())
-}   
+}
 
 pub async fn get_all_food(pool: &MySqlPool) -> Result<Vec<Food>, sqlx::Error> {
     let food = sqlx::query_as!(
         Food,
         r#"
-            SELECT id, title, description, is_free, pickup_time, user_id, image FROM foods
+            SELECT id, title, description, is_free, pickup_time, user_id, image, pickup_address FROM foods
         "#
     )
     .fetch_all(pool)
@@ -121,7 +160,7 @@ pub async fn get_all_food(pool: &MySqlPool) -> Result<Vec<Food>, sqlx::Error> {
 pub async fn check_if_email_exists(pool: &MySqlPool, email: String) -> Result<bool, sqlx::Error> {
     let result = sqlx::query!(
         r#"
-            SELECT email FROM users WHERE email = ?
+            SELECT email FROM users WHERE email = ? AND is_active = 1
         "#,
         email
     )
@@ -155,7 +194,7 @@ pub async fn login_user(pool: &MySqlPool, login_details: &LoginDetail) -> Result
         UserDetails,
         r#"
             SELECT id, email, last_name, first_name, num_of_food_added,
-            num_of_food_taken, profile_image, password_hash, email_verified FROM users WHERE email = ?
+            num_of_food_taken, profile_image, password_hash, email_verified FROM users WHERE email = ? AND is_active = 1
         "#,
         login_details.email
     )
@@ -181,7 +220,7 @@ pub async fn delete_food(pool: &MySqlPool, id: i32) -> Result<(), sqlx::Error>{
 pub async fn edit_profile_picture(pool: &MySqlPool, picture: &PictureDetails) -> Result<(), sqlx::Error>{
     sqlx::query!(
         r#"
-            UPDATE users SET profile_image = ? WHERE id = ?
+            UPDATE users SET profile_image = ? WHERE id = ? AND is_active = 1
         "#,
         picture.profile_image,
         picture.user_id
@@ -204,7 +243,7 @@ pub async fn verify_user_code(pool: &MySqlPool, user_code: &UserCodeDetails) -> 
 pub async fn update_verified(pool: &MySqlPool, user_email: &String) -> Result<(), sqlx::Error>{
     sqlx::query!(
         r#"
-            UPDATE users SET email_verified = 1 WHERE email = ?
+            UPDATE users SET email_verified = 1 WHERE email = ? AND is_active = 1
         "#,
         user_email
     ).execute(pool).await?;
@@ -224,4 +263,108 @@ pub async fn add_user_code(pool: &MySqlPool, code: String, user_email: &String) 
     Ok(())
 }
 
-//TRYHARDANDO
+//edit_user_profile (check if the email was changed, if yes changed the verified email to false)
+pub async fn edit_user_profile(pool: &MySqlPool, edit_user_details: &EditUserDetails) -> Result<(), sqlx::Error>{
+    sqlx::query!(
+        r#"
+            UPDATE users SET first_name = ?, last_name = ?, email = ? WHERE id = ? And is_active = 1
+        "#,
+        edit_user_details.first_name,
+        edit_user_details.last_name,
+        edit_user_details.email,
+        edit_user_details.user_id,
+    ).execute(pool).await?;
+
+    Ok(())
+}
+
+pub async fn change_email_verified(pool: &MySqlPool, user_mail: &String) -> Result<(), sqlx::Error>{
+    sqlx::query!(
+        r#"
+            UPDATE users SET email_verified = 0 WHERE email = ?
+        "#,
+        user_mail
+    ).execute(pool).await?;
+    Ok(())
+}
+
+pub async fn delete_user_account(pool: &MySqlPool, user_id: i32) -> Result<(), sqlx::Error>{
+    sqlx::query!(
+        r#"
+            UPDATE users SET is_active = 1 WHERE id = ?
+        "#,
+        user_id
+    ).execute(pool).await?;
+
+    Ok(())
+}
+
+pub async fn make_reserve(pool: &MySqlPool, reserve_details: ReserveDetails) -> Result<(), sqlx::Error>{
+    sqlx::query!(
+        r#"
+            INSERT INTO reservations (user_id, food_id) VALUES (?, ?)
+        "#,
+        reserve_details.user_id,
+        reserve_details.food_id
+    ).execute(pool).await?;
+
+    Ok(())
+}
+
+pub async fn mark_user_reserve(pool: &MySqlPool, user_id: i32) -> Result<(), sqlx::Error>{
+    sqlx::query!(
+        r#"
+            UPDATE users SET has_reserve = 1 WHERE id = ?
+        "#,
+        user_id
+    ).execute(pool).await?;
+
+    Ok(())
+}
+
+pub async fn check_if_user_has_reserve(pool: &MySqlPool, user_id: i32) -> Result<bool, sqlx::Error>{
+   let result = sqlx::query_scalar!(
+    r#"
+        SELECT has_reserve FROM users WHERE id = ? AND has_reserve = 1
+    "#,
+    user_id
+   ).fetch_optional(pool).await?;
+
+   Ok(result.is_some())
+}
+
+pub async fn get_user_reservations(pool: &MySqlPool, user_id: i32) -> Result<Vec<AllReserves>, sqlx::Error>{
+    let all_reserve = sqlx::query_as!(
+        AllReserves, 
+        r#"
+            SELECT r.food_id, f.title, f.description, u.first_name, f.image FROM reservations r
+            INNER JOIN users u on u.id = r.user_id INNER JOIN foods f on
+            f.id = r.food_id WHERE r.user_id = ?
+        "#,
+        user_id
+    ).fetch_all(pool).await?;
+
+    Ok(all_reserve)
+}
+
+// get_active_reserve
+pub async fn get_active_reserve(pool: &MySqlPool, user_id: i32) ->Result<ActiveReserve, sqlx::Error>{
+    let active_reserve = sqlx::query_as!(
+        ActiveReserve,
+        r#"
+            SELECT food_id, title, description, first_name, image, 
+            pickup_time, pickup_address FROM reservations r
+            INNER JOIN users u on u.id = r.user_id 
+            INNER JOIN foods f on f.id = r.food_id
+            WHERE r.user_id = ? AND u.has_reserve = 1
+            AND r.status = 'active'
+        "#,
+        user_id
+    ).fetch_one(pool).await?;
+
+    Ok(active_reserve)
+}
+
+//get_all_donations
+
+// get_active_donations
