@@ -366,5 +366,7 @@ pub async fn get_active_reserve(pool: &MySqlPool, user_id: i32) ->Result<ActiveR
 }
 
 //get_all_donations
+// user_id -> tabella foods tutti i campi con user_id = user_id
 
 // get_active_donations
+// user_id ->  

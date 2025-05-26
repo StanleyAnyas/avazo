@@ -2,12 +2,16 @@
 use actix_web::{get, post, web, HttpResponse, Responder};
 // use rand::rand_core::impls;
 // use rand::rand_core::impls;
-use sqlx::{MySqlPool};
-use crate::{db::{add_user_code, check_if_email_exists, create_new_user, delete_food, delete_user_account, edit_profile_picture, edit_user_profile, get_all_food, increment_user_food_count, insert_food, login_user, update_verified, verify_user_code, change_email_verified, EditUserDetails, FoodDetail, LoginDetail, NewUserDetails, PictureDetails, UserCodeDetails}, functions::{compare_password, generate_code, send_goodbye_mail, send_mail}};
+use sqlx::{pool, MySqlPool};
+use crate::{db::{add_user_code, change_email_verified, check_if_email_exists, check_if_user_has_reserve, create_new_user, delete_food, delete_user_account, edit_profile_picture, edit_user_profile, get_all_food, get_user_reservations, increment_user_food_count, insert_food, login_user, make_reserve, mark_user_reserve, update_verified, verify_user_code, EditUserDetails, FoodDetail, LoginDetail, NewUserDetails, PictureDetails, ReserveDetails, UserCodeDetails}, functions::{compare_password, generate_code, send_goodbye_mail, send_mail}};
 
 #[derive(serde::Deserialize)]
 struct FoodId{
     food_id: i32
+}
+#[derive(serde::Deserialize)]
+struct UserId{
+    user_id: i32
 }
 #[derive(serde::Deserialize, serde::Serialize)]
 struct MajesticRes{
@@ -163,5 +167,37 @@ async fn edit_profile(pool: web::Data<MySqlPool>, user_edit_details: web::Json<E
             
         }
         Err(err) => HttpResponse::InternalServerError().body(format!("there was an error: {}", err))
+    }
+}
+
+#[get("/check_if_user_has_reserve")]
+async fn has_reserve(pool: web::Data<MySqlPool>, reserve_details: web::Query<ReserveDetails>) ->impl Responder{
+    let id = reserve_details.user_id;
+    match check_if_user_has_reserve(&pool, id.clone()).await {
+        Ok(has) => {
+            if has {
+                return HttpResponse::NotAcceptable().body("already has a reservation")
+            }
+                match make_reserve(&pool, reserve_details.into_inner()).await {
+                    Ok(_) =>{
+                        match mark_user_reserve(&pool, id).await {
+                            Ok(_) => HttpResponse::Ok().body("reservation made"),
+                            Err(err) => HttpResponse::InternalServerError().body(format!("error marking reservation but reservation made: {}", err))
+                        }
+                    }
+                    Err(err) => HttpResponse::InternalServerError().body(format!("error making reserve: {}", err))
+                }
+        }
+        Err(err) => HttpResponse::InternalServerError().body(format!("there was an error: {}", err))
+    }
+}
+
+#[post("/get_user_reservations")]
+async fn get_reserves(pool: web::Data<MySqlPool>, user_id: web::Query<UserId>) -> impl Responder{
+    match get_user_reservations(&pool, user_id.user_id).await {
+       Ok(all_reserves) =>{
+
+       }
+       Err(err) => HttpResponse::InternalServerError().body(format!("error getting all reserves: {}", err)) 
     }
 }
