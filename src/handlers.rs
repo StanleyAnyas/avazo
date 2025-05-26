@@ -3,7 +3,7 @@ use actix_web::{get, post, web, HttpResponse, Responder};
 // use rand::rand_core::impls;
 // use rand::rand_core::impls;
 use sqlx::{MySqlPool};
-use crate::{db::{add_user_code, check_if_email_exists, create_new_user, delete_food, delete_user_account, edit_profile_picture, edit_user_profile, get_all_food, increment_user_food_count, insert_food, login_user, update_verified, verify_user_code, change_email_verified, EditUserDetails, FoodDetail, LoginDetail, NewUserDetails, PictureDetails, UserCodeDetails}, functions::{compare_password, generate_code, send_goodbye_mail, send_mail}};
+use crate::{db::{get_all_donations, add_user_code, change_email_verified, check_if_email_exists, create_new_user, delete_food, delete_user_account, edit_profile_picture, edit_user_profile, get_all_food, increment_user_food_count, insert_food, login_user, update_donation, update_verified, verify_user_code, EditUserDetails, Food, FoodDetail, LoginDetail, NewUserDetails, PictureDetails, UserCodeDetails, UserDetails}, functions::{compare_password, generate_code, send_goodbye_mail, send_mail}};
 
 #[derive(serde::Deserialize)]
 struct FoodId{
@@ -163,5 +163,23 @@ async fn edit_profile(pool: web::Data<MySqlPool>, user_edit_details: web::Json<E
             
         }
         Err(err) => HttpResponse::InternalServerError().body(format!("there was an error: {}", err))
+    }
+}
+
+#[get("/get_all_donations")]
+async fn get_donations(pool: web::Data<MySqlPool>, user_info: web::Query<MajesticRes>) -> impl Responder {
+
+    match get_all_donations(&pool, user_info.user_id).await {
+        Ok(all_donations) => HttpResponse::Ok().json(all_donations),
+        Err(err) => HttpResponse::InternalServerError().body(format!("there was an error: {}", err))
+    }
+}
+
+#[post("/edit_donation")]
+async fn edit_donation(pool: web::Data<MySqlPool>, food_edit_details: web::Json<FoodDetail>) -> impl Responder {
+    let food_edit_details = food_edit_details.into_inner();
+    match update_donation(&pool, &food_edit_details).await {
+        Ok(_) => return HttpResponse::Ok().json(food_edit_details),
+        Err(err) => HttpResponse::NotModified().body(format!("there was an error: {}", err))
     }
 }
