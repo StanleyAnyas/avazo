@@ -1,9 +1,9 @@
 
-use actix_web::{get, post, web, HttpResponse, Responder};
+use actix_web::{get, post, web::{self}, HttpResponse, Responder};
 // use rand::rand_core::impls;
 // use rand::rand_core::impls;
-use sqlx::{pool, MySqlPool};
-use crate::{db::{add_user_code, change_email_verified, check_if_email_exists, check_if_user_has_reserve, create_new_user, delete_food, delete_user_account, edit_profile_picture, edit_user_profile, get_all_food, get_user_reservations, increment_user_food_count, insert_food, login_user, make_reserve, mark_user_reserve, update_verified, verify_user_code, EditUserDetails, FoodDetail, LoginDetail, NewUserDetails, PictureDetails, ReserveDetails, UserCodeDetails}, functions::{compare_password, generate_code, send_goodbye_mail, send_mail}};
+use sqlx::{MySqlPool};
+use crate::{db::{add_user_code, change_email_verified, check_if_email_exists, check_if_user_has_reserve, create_new_user, delete_food, delete_user_account, edit_profile_picture, edit_reservation, edit_user_profile, get_active_donation, get_active_reserve, get_all_donations, get_all_food, get_user_reservations, increment_user_food_count, insert_food, login_user, make_reserve, mark_user_reserve, update_donation, update_verified, verify_user_code, EditUserDetails, FoodDetail, LoginDetail, NewUserDetails, PictureDetails, ReserveDetails, UserCodeDetails}, functions::{compare_password, generate_code, send_goodbye_mail, send_mail}};
 
 #[derive(serde::Deserialize)]
 struct FoodId{
@@ -25,7 +25,7 @@ struct VerifyMail{
     user_mail: String
 }
 
-#[get("/get_food_list")]
+#[get("/get_food_list")] // tested
 async fn get_food_list(pool: web::Data<MySqlPool>) -> impl Responder{
     match get_all_food(&pool).await {
         Ok(food) => HttpResponse::Ok().json(food),
@@ -33,7 +33,7 @@ async fn get_food_list(pool: web::Data<MySqlPool>) -> impl Responder{
     }
 }
 
-#[post("/add_food")]
+#[post("/add_food")] //tested
 async fn add_food(pool: web::Data<MySqlPool>, food: web::Json<FoodDetail>) -> impl Responder{
     let food_data = food.into_inner();
     match insert_food(&pool, &food_data).await {
@@ -49,7 +49,7 @@ async fn add_food(pool: web::Data<MySqlPool>, food: web::Json<FoodDetail>) -> im
     } 
 }
 
-#[post("/add_user")]
+#[post("/add_user")] //tested
 async fn add_user(pool: web::Data<MySqlPool>, user_details: web::Json<NewUserDetails>) -> impl Responder{
     let user_data = user_details.into_inner();
     match check_if_email_exists(&pool, user_data.email.clone()).await {
@@ -69,7 +69,7 @@ async fn add_user(pool: web::Data<MySqlPool>, user_details: web::Json<NewUserDet
     
 }
 
-#[post("/delete_food_handler")]
+#[post("/delete_food_handler")] //tested
 async fn delete_food_handler(pool: web::Data<MySqlPool>, food_id: web::Json<FoodId>) -> impl Responder{
     match delete_food(&pool, food_id.food_id).await {
         Ok(_) => HttpResponse::Ok().body("Food deleted"),
@@ -77,7 +77,7 @@ async fn delete_food_handler(pool: web::Data<MySqlPool>, food_id: web::Json<Food
     }
 }
 
-#[post("/login_user_handler")]
+#[post("/login_user_handler")] // tested
 async fn login_user_handler(pool: web::Data<MySqlPool>, user: web::Json<LoginDetail>) -> impl Responder{
     let user_pass = user.into_inner();
     match login_user(&pool, &user_pass).await {
@@ -102,7 +102,7 @@ async  fn edit_profile_pic(pool: web::Data<MySqlPool>, picture_details: web::Jso
     }
 }
 
-#[get("/verify_code")]
+#[get("/verify_code")] // tested
 async fn verify_code(pool: web::Data<MySqlPool>, code: web::Query<UserCodeDetails>) -> impl Responder{
     match verify_user_code(&pool, &code).await {
         Ok(exist) => {
@@ -121,7 +121,7 @@ async fn verify_code(pool: web::Data<MySqlPool>, code: web::Query<UserCodeDetail
     }
 }
 
-#[get("/send_verify_mail")]
+#[get("/send_verify_mail")] //tested
 async fn send_verify_mail(pool: web::Data<MySqlPool>, email: web::Query<VerifyMail>) -> impl Responder{
     let code = generate_code();
     // println!("{}", code);
@@ -143,7 +143,7 @@ async fn delete_user(pool: web::Data<MySqlPool>, user_details: web::Query<Majest
     match delete_user_account(&pool, id).await {
         Ok(_) => {
             match send_goodbye_mail(user_mail).await {
-                Ok(_) => HttpResponse::Ok().body("user dleted successfully"),
+                Ok(_) => HttpResponse::Ok().body("user deleted successfully"),
                 Err(err) => HttpResponse::ExpectationFailed().body(format!("couldn't send mail: {}", err))
             }
         }
@@ -188,16 +188,58 @@ async fn has_reserve(pool: web::Data<MySqlPool>, reserve_details: web::Query<Res
                     Err(err) => HttpResponse::InternalServerError().body(format!("error making reserve: {}", err))
                 }
         }
+        Err(err) => HttpResponse::InternalServerError().body(format!("error making reserve: {}", err))
+    }
+}
+
+#[get("/get_all_donations")]
+async fn get_donations(pool: web::Data<MySqlPool>, user_info: web::Query<UserId>) -> impl Responder {
+
+    match get_all_donations(&pool, user_info.user_id).await {
+        Ok(all_donations) => HttpResponse::Ok().json(all_donations),
         Err(err) => HttpResponse::InternalServerError().body(format!("there was an error: {}", err))
     }
 }
 
-#[post("/get_user_reservations")]
+#[post("/get_user_reservations")]  
 async fn get_reserves(pool: web::Data<MySqlPool>, user_id: web::Query<UserId>) -> impl Responder{
     match get_user_reservations(&pool, user_id.user_id).await {
        Ok(all_reserves) =>{
-
+           HttpResponse::Ok().json(all_reserves)
        }
        Err(err) => HttpResponse::InternalServerError().body(format!("error getting all reserves: {}", err)) 
+    }
+}
+
+#[post("/edit_donation")]
+async fn edit_donation(pool: web::Data<MySqlPool>, food_edit_details: web::Json<FoodDetail>) -> impl Responder {
+    let food_edit_details = food_edit_details.into_inner();
+    match update_donation(&pool, &food_edit_details).await {
+        Ok(_) => return HttpResponse::Ok().json(food_edit_details),
+        Err(err) => HttpResponse::NotModified().body(format!("there was an error: {}", err))
+    }
+}
+
+#[get("/get_active_donations")]
+async fn get_user_active_donations(pool: web::Data<MySqlPool>, user_info: web::Query<UserId>) -> impl Responder{
+    match get_active_donation(&pool, user_info.user_id).await {
+        Ok(all_donations) => HttpResponse::Ok().json(all_donations),
+        Err(err) => HttpResponse::InternalServerError().body(format!("there was an error getting user active donations: {}", err))
+    }
+}
+
+#[get("/cancel_reserve")]
+async fn cancel_reserve(pool: web::Data<MySqlPool>, reserve_details: web::Json<ReserveDetails>) -> impl Responder{
+    match edit_reservation(&pool, reserve_details.into_inner()).await {
+        Ok(_) => HttpResponse::Ok().body("reservation cancelled"),
+        Err(err) => HttpResponse::InternalServerError().body(format!("there was an error: {}", err))
+    }
+}
+
+#[get("/get_user_active_reserve")]
+async fn get_user_active_reserve(pool: web::Data<MySqlPool>, user_info: web::Query<UserId>) -> impl Responder{
+    match get_active_reserve(&pool, user_info.user_id).await {
+        Ok(active_reserve) => HttpResponse::Ok().json(active_reserve),
+        Err(err) => HttpResponse::InternalServerError().body(format!("error getting active reservation: {}", err))
     }
 }

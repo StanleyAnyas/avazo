@@ -1,4 +1,3 @@
-use actix_web::cookie::time::format_description::well_known::iso8601::OffsetPrecision;
 use sqlx::{FromRow, MySqlPool};
 use crate::functions::{check_code, hash_password};
 use serde_with::{serde_as, base64::Base64};
@@ -23,7 +22,8 @@ pub struct Food {
     pub pickup_time: Option<String>,
     pub pickup_address: Option<String>,
     pub user_id: Option<i32>,
-    pub image: Option<Vec<u8>> 
+    pub image: Option<Vec<u8>>,
+    pub status: Option<String>
 }
 
 #[derive(Debug, FromRow, serde::Serialize)]
@@ -104,7 +104,7 @@ pub struct EditUserDetails{
     pub email_was_changed: bool
 }
 
-#[derive(serde::Deserialize, serde::Serialize)]
+#[derive(serde::Deserialize, serde::Serialize, FromRow, Debug,)]
 pub struct ReserveDetails{
     pub user_id: i32,
     pub food_id: i32
@@ -148,7 +148,7 @@ pub async fn get_all_food(pool: &MySqlPool) -> Result<Vec<Food>, sqlx::Error> {
     let food = sqlx::query_as!(
         Food,
         r#"
-            SELECT id, title, description, is_free, pickup_time, user_id, image, pickup_address FROM foods
+            SELECT id, title, description, is_free, pickup_time, user_id, image, pickup_address, status FROM foods
         "#
     )
     .fetch_all(pool)
@@ -291,7 +291,7 @@ pub async fn change_email_verified(pool: &MySqlPool, user_mail: &String) -> Resu
 pub async fn delete_user_account(pool: &MySqlPool, user_id: i32) -> Result<(), sqlx::Error>{
     sqlx::query!(
         r#"
-            UPDATE users SET is_active = 1 WHERE id = ?
+            UPDATE users SET is_active = 0 WHERE id = ?
         "#,
         user_id
     ).execute(pool).await?;
@@ -366,7 +366,74 @@ pub async fn get_active_reserve(pool: &MySqlPool, user_id: i32) ->Result<ActiveR
 }
 
 //get_all_donations
-// user_id -> tabella foods tutti i campi con user_id = user_id
+pub async fn get_all_donations(pool: &MySqlPool, user_id: i32) ->Result<Vec<Food>, sqlx::Error>{
+    let all_donations = sqlx::query_as!(
+        Food,
+        r#"
+            SELECT * 
+            FROM foods
+            WHERE user_id = ?
+        "#,
+        user_id
+    ).fetch_all(pool)
+    .await?;
+
+    Ok(all_donations)
+}
+
+//update_donation
+pub async fn update_donation(pool: &MySqlPool, food: &FoodDetail) -> Result<(), sqlx::Error> {
+    sqlx::query!(
+        r#"
+            UPDATE foods 
+            SET title = ?, description = ?, is_free = ?, pickup_time = ?, pickup_address = ?, image = ?
+            WHERE id = ?
+        "#,
+        food.title,
+        food.description,
+        food.is_free,
+        food.pickup_time,
+        food.pickup_address,
+        food.image,
+        food.user_id
+    )
+    .execute(pool)
+    .await?;
+
+    Ok(())
+}
 
 // get_active_donations
-// user_id ->  
+pub async fn get_active_donation(pool: &MySqlPool, user_id: i32) -> Result<Vec<Food>, sqlx::Error>{
+    let active_donation = sqlx::query_as!(
+        Food,
+        r#"
+            SELECT * from foods WHERE user_id = ? and status = 'active'
+        "#,
+        user_id
+
+    ).fetch_all(pool).await?;
+
+    Ok(active_donation)
+}
+
+pub async fn edit_reservation(pool: &MySqlPool, reserve_details: ReserveDetails) -> Result<(), sqlx::Error>{
+    sqlx::query!(
+        r#"
+            UPDATE reservations SET status = 'cancelled'
+            WHERE user_id = ? OR food_id = ?
+        "#,
+        reserve_details.user_id,
+        reserve_details.food_id
+    ).execute(pool).await?;
+
+    sqlx::query!(
+        r#"
+            UPDATE users SET has_reserve = 0
+            WHERE id = ?
+        "#,
+        reserve_details.user_id
+    ).execute(pool).await?;
+
+    Ok(())
+}

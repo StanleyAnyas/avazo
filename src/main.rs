@@ -1,4 +1,6 @@
+use actix_cors::Cors;
 use actix_web::{web, App, HttpServer};
+
 // use functions::generate_code;
 use std::env;
 use dotenvy::dotenv;
@@ -25,9 +27,13 @@ async fn server() -> std::io::Result<()>{
     let port = 8080;
     println!("Starting server on port {port}");
     let addrs = ("127.0.0.1", port);
+    // let frontend_url = std::env::var("FRONTEND_URL").unwrap_or("http://localhost:3000".to_string());
     const NUM: usize = 2;
     HttpServer::new(move || {
         App::new()
+        .wrap(
+           Cors::permissive()
+        )
         .app_data(web::Data::new(pool.clone()))
         .service(handlers::get_food_list)
         .service(handlers::add_food)
@@ -38,7 +44,11 @@ async fn server() -> std::io::Result<()>{
         .service(handlers::send_verify_mail)
         .service(handlers::edit_profile_pic)
         .service(handlers::delete_user)
-        // .service(handlers::)
+        .service(handlers::get_donations)
+        .service(handlers::edit_donation)
+        .service(handlers::get_user_active_donations)
+        .service(handlers::cancel_reserve)
+        .service(handlers::get_user_active_reserve)
     })
     .bind(addrs)?
     .workers(NUM)
