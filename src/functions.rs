@@ -83,25 +83,25 @@ pub async fn send_goodbye_mail(user_mail: String) -> Result<(), Box<dyn std::err
     let username = env::var("EMAIL_USERNAME").expect("email username does not exist");
     let password = env::var("EMAIL_PASSWORD").expect("password not exist");
     let relay = env::var("EMAIL_SMTP").expect("smtp does not exist");
-
-    let body = format!(r#"
+    // println!("{username}");
+    // println!("{password}");
+    let body = r#"
         <html>
             <body>
-                <div style="font-family: Arial; padding: 20px;">
-                <h2 style="color: #2e7d32;">Goodbye message - Avanzo</h2>
-                <p>We are sorry seeing you leave.</p>
-                <p>Hopefully we will see you again.</p>
-            </div>
+                <div style='font-family: Arial; padding: 20px;'>
+                    <h2 style='color: #2e7d32;'>Goodbye message - Avanzo</h2>
+                    <p>We are sorry seeing you leave.</p>
+                    <p>Hopefully we will see you again.</p>
+                </div>
             </body>
         </html>
-    "#);
-    // println!("{}", body);
+    "#;
     let email = Message::builder()
         .from("Avanzo app <ritrove@ritrove.com>".parse()?)
         .to(user_mail.parse()?)
         .subject("Goodbye message")
         .header(ContentType::TEXT_HTML)
-        .body(body)?;
+        .body(body.to_string())?;
 
     let creds = Credentials::new(username, password);
 
