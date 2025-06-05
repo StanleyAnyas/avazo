@@ -1,31 +1,24 @@
 
-use actix_web::{get, post, web::{self}, HttpResponse, Responder};
+use actix_web::{delete, get, patch, post, web::{self}, HttpResponse, Responder};
 // use rand::rand_core::impls;
 // use rand::rand_core::impls;
 use sqlx::{MySqlPool};
-use crate::{db::{add_user_code, change_email_verified, check_if_email_exists, check_if_user_has_reserve, create_new_user, delete_food, delete_user_account, delete_verification_code, edit_profile_picture, edit_reservation, edit_user_profile, get_active_donation, get_active_reserve, get_all_donations, get_all_food, get_reservation_details, get_user_reservations, increment_user_food_count, insert_food, login_user, make_reserve, mark_user_reserve, update_donation, update_verified, verify_user_code, EditUserDetails, FoodDetail, FoodDetail2, LoginDetail, NewUserDetails, PictureDetails, ReserveDetails, UserCodeDetails}, functions::{compare_password, generate_code, send_goodbye_mail, send_mail}};
+use crate::{db::{add_user_code, change_email_verified, check_if_email_exists, check_if_user_has_reserve, create_new_user, delete_food, delete_user_account, delete_verification_code, edit_profile_picture, edit_reservation, edit_user_profile, get_active_donation, get_active_reserve, get_all_donations, get_all_food, get_reservation_details, get_user_email, get_user_reservations, increment_user_food_count, insert_food, login_user, make_reserve, mark_user_reserve, update_donation, update_verified, verify_user_code, EditUserDetails, FoodDetail, FoodDetail2, LoginDetail, NewUserDetails, PictureDetails, PicturePayload, ReserveDetails, UserCodeDetails}, functions::{compare_password, generate_code, send_goodbye_mail, send_mail}};
 
 #[derive(serde::Deserialize)]
 struct FoodId{
     food_id: i32
 }
-#[derive(serde::Deserialize)]
-struct UserId{
-    user_id: i32
-}
+// #[derive(serde::Deserialize)]
+// struct UserId{
+//     user_id: i32
+// }
 #[derive(serde::Deserialize, serde::Serialize)]
 struct MajesticRes{
-    user_id: i32,
     user_email: String
 }
 
-
-#[derive(serde::Deserialize)]
-struct VerifyMail{
-    user_mail: String
-}
-
-#[get("/get_food_list")] // tested
+#[get("/food")] // tested
 async fn get_food_list(pool: web::Data<MySqlPool>) -> impl Responder{
     match get_all_food(&pool).await {
         Ok(food) => HttpResponse::Ok().json(food),
@@ -33,7 +26,7 @@ async fn get_food_list(pool: web::Data<MySqlPool>) -> impl Responder{
     }
 }
 
-#[post("/add_food")] //tested
+#[post("/food")] //tested
 async fn add_food(pool: web::Data<MySqlPool>, food: web::Json<FoodDetail>) -> impl Responder{
     let food_data = food.into_inner();
     match insert_food(&pool, &food_data).await {
@@ -49,7 +42,7 @@ async fn add_food(pool: web::Data<MySqlPool>, food: web::Json<FoodDetail>) -> im
     } 
 }
 
-#[post("/add_user")] //tested
+#[post("/user")] //tested
 async fn add_user(pool: web::Data<MySqlPool>, user_details: web::Json<NewUserDetails>) -> impl Responder{
     let user_data = user_details.into_inner();
     match check_if_email_exists(&pool, user_data.email.clone()).await {
@@ -69,15 +62,16 @@ async fn add_user(pool: web::Data<MySqlPool>, user_details: web::Json<NewUserDet
     
 }
 
-#[post("/delete_food_handler")] //tested
-async fn delete_food_handler(pool: web::Data<MySqlPool>, food_id: web::Json<FoodId>) -> impl Responder{
+#[delete("/food/{food_id}")]
+async fn delete_food_handler(pool: web::Data<MySqlPool>, path: web::Path<FoodId>) -> impl Responder{
+    let food_id = path.into_inner();
     match delete_food(&pool, food_id.food_id).await {
         Ok(_) => HttpResponse::Ok().body("Food deleted"),
         Err(err) => HttpResponse::InternalServerError().body(format!("There was an error: {}", err))
     }
 }
 
-#[post("/login_user_handler")] // tested
+#[post("/login")] // tested
 async fn login_user_handler(pool: web::Data<MySqlPool>, user: web::Json<LoginDetail>) -> impl Responder{
     let user_pass = user.into_inner();
     match login_user(&pool, &user_pass).await {
@@ -93,23 +87,31 @@ async fn login_user_handler(pool: web::Data<MySqlPool>, user: web::Json<LoginDet
     }
 }
 
-#[post("/edit_profile_pic")] //tested
-async  fn edit_profile_pic(pool: web::Data<MySqlPool>, picture_details: web::Json<PictureDetails>) -> impl Responder{
-    let user_pic = picture_details.into_inner();
+#[patch("/user/{user_id}/picture")]
+async  fn edit_profile_pic(pool: web::Data<MySqlPool>, path: web::Path<i32>, payload: web::Json<PicturePayload>) -> impl Responder{ 
+    let user_id = path.into_inner();
+    let profile_image = payload.profile_image.clone();
+    let user_pic = PictureDetails { user_id, profile_image };
     match edit_profile_picture(&pool, &user_pic).await {
         Ok(_) => HttpResponse::Ok().body("picture added"),
         Err(err) => HttpResponse::InternalServerError().body(format!("There was an error: {}", err))
     }
 }
 
-#[get("/verify_code")] // tested
-async fn verify_code(pool: web::Data<MySqlPool>, code: web::Query<UserCodeDetails>) -> impl Responder{
-    match verify_user_code(&pool, &code).await {
+#[post("/user/{user_id}/verify")]
+async fn verify_code(pool: web::Data<MySqlPool>, path: web::Path<i32>, code: web::Json<UserCodeDetails>) -> impl Responder{
+    let user_id = path.into_inner();
+    let details = UserCodeDetails{
+        user_code: code.user_code.clone(),
+        user_id,
+        user_email: code.user_email.clone()
+    };
+    match verify_user_code(&pool, &details).await {
         Ok(exist) => {
             if exist {
-                match update_verified(&pool, &code.user_email).await {
+                match update_verified(&pool, &details.user_email).await {
                     Ok(_) => {
-                        match delete_verification_code(&pool, &code.user_email).await {
+                        match delete_verification_code(&pool, &details.user_email).await {
                             Ok(_) => HttpResponse::Ok().body("email verified"),
                             Err(err) => HttpResponse::InternalServerError().body(format!("there was error: {}", err))
                         }
@@ -124,24 +126,33 @@ async fn verify_code(pool: web::Data<MySqlPool>, code: web::Query<UserCodeDetail
     }
 }
 
-#[get("/send_verify_mail")] //tested
-async fn send_verify_mail(pool: web::Data<MySqlPool>, email: web::Query<VerifyMail>) -> impl Responder{
+
+#[post("/user/{user_id}/mail")]
+async fn send_verify_mail(pool: web::Data<MySqlPool>, path: web::Path<i32>) -> impl Responder{
     let code = generate_code();
-    // println!("{}", code);
-    match add_user_code(&pool, code.clone(), &email.user_mail).await {
-        Ok(_) => {
-            match send_mail(&email.user_mail, &code).await {
-                Ok(_) => HttpResponse::Ok().body("email sent successfully"), 
-                Err(err) =>HttpResponse::ExpectationFailed().body(format!("there was an error quiiii: {}", err))
-            }   
+
+    let user_id = path.into_inner();
+    match get_user_email(&pool, &user_id).await {
+        Ok(user_mail) =>{
+            match add_user_code(&pool, code.clone(), user_id).await {
+                Ok(_) => {
+                    match send_mail(&user_mail, &code).await {
+                        Ok(_) => HttpResponse::Ok().body("email sent successfully"), 
+                        Err(err) =>HttpResponse::ExpectationFailed().body(format!("there was an error quiiii: {}", err))
+                    }   
+                }
+                
+                Err(err) => HttpResponse::InternalServerError().body(format!("there was an error qui: {}", err))
+            }
         }
-        Err(err) => HttpResponse::InternalServerError().body(format!("there was an error qui: {}", err))
-    }
+        Err(err) => HttpResponse::InternalServerError().body(format!("there was error verifying user email: {}", err))
+    } 
+   
 }
 
-#[post("/delete_user")] //tested
-async fn delete_user(pool: web::Data<MySqlPool>, user_details: web::Json<MajesticRes>) -> impl Responder{
-    let id = user_details.user_id;
+#[delete("/user/{id}/profile")]
+async fn delete_user(pool: web::Data<MySqlPool>, path: web::Path<i32>, user_details: web::Json<MajesticRes>) -> impl Responder{
+    let id = path.into_inner();
     let user_mail = user_details.user_email.clone();
     match delete_user_account(&pool, id, &user_mail).await {
         Ok(_) => {
@@ -155,10 +166,19 @@ async fn delete_user(pool: web::Data<MySqlPool>, user_details: web::Json<Majesti
 }
 
 
-#[post("/edit_user_profile")] //tested
-async fn edit_profile(pool: web::Data<MySqlPool>, user_edit_details: web::Json<EditUserDetails>) -> impl Responder {
-    let user_edit_details = user_edit_details.into_inner();
-    match edit_user_profile(&pool, &user_edit_details).await {
+#[patch("/user/{id}/profile")]
+async fn edit_profile(pool: web::Data<MySqlPool>, path: web::Path<i32>, user_edit_details: web::Json<EditUserDetails>) -> impl Responder {
+    
+    let user_id = path.into_inner();
+    let user_edit = EditUserDetails {
+        user_id: user_id,
+        first_name: user_edit_details.first_name.clone(),
+        last_name: user_edit_details.last_name.clone(),
+        email: user_edit_details.email.clone(),
+        email_was_changed: user_edit_details.email_was_changed
+    };
+    
+    match edit_user_profile(&pool, &user_edit).await {
         Ok(_) => {
             if user_edit_details.email_was_changed {
                 match change_email_verified(&pool, &user_edit_details.email).await {
@@ -168,24 +188,24 @@ async fn edit_profile(pool: web::Data<MySqlPool>, user_edit_details: web::Json<E
             }else{
                 return HttpResponse::Ok().json(user_edit_details)
             }
-            
         }
         Err(err) => HttpResponse::InternalServerError().body(format!("there was an error: {}", err))
     }
 }
 
-#[get("/get_all_donations")] //tested
-async fn get_donations(pool: web::Data<MySqlPool>, user_info: web::Query<UserId>) -> impl Responder {
-
-    match get_all_donations(&pool, user_info.user_id).await {
+#[get("/user/{id}/donations")]
+async fn get_donations(pool: web::Data<MySqlPool>, path: web::Path<i32>) -> impl Responder {
+    let user_id = path.into_inner();
+    match get_all_donations(&pool, user_id).await {
         Ok(all_donations) => HttpResponse::Ok().json(all_donations),
         Err(err) => HttpResponse::InternalServerError().body(format!("there was an error: {}", err))
     }
 }
 
-#[get("/get_user_reservations")] // tested
-async fn get_reserves(pool: web::Data<MySqlPool>, user_id: web::Query<UserId>) -> impl Responder{
-    match get_user_reservations(&pool, user_id.user_id).await {
+#[get("/user/{id}/reservations")]
+async fn get_reserves(pool: web::Data<MySqlPool>, path: web::Path<i32>) -> impl Responder{
+    let user_id = path.into_inner();
+    match get_user_reservations(&pool, user_id).await {
        Ok(all_reserves) =>{
            HttpResponse::Ok().json(all_reserves)
        }
@@ -193,7 +213,7 @@ async fn get_reserves(pool: web::Data<MySqlPool>, user_id: web::Query<UserId>) -
     }
 }
 
-#[post("/edit_donation")] //tested
+#[patch("/donation")]
 async fn edit_donation(pool: web::Data<MySqlPool>, food_edit_details: web::Json<FoodDetail2>) -> impl Responder {
     let food_edit_details = food_edit_details.into_inner();
     match update_donation(&pool, &food_edit_details).await {
@@ -202,17 +222,18 @@ async fn edit_donation(pool: web::Data<MySqlPool>, food_edit_details: web::Json<
     }
 }
 
-#[get("/get_active_donations")] //tested
-async fn get_user_active_donations(pool: web::Data<MySqlPool>, user_info: web::Query<UserId>) -> impl Responder{
-    match get_active_donation(&pool, user_info.user_id).await {
+#[get("/donations/{id}/active")]
+async fn get_user_active_donations(pool: web::Data<MySqlPool>, path: web::Path<i32>) -> impl Responder{
+    let user_id = path.into_inner();
+    match get_active_donation(&pool, user_id).await {
         Ok(all_donations) => HttpResponse::Ok().json(all_donations),
         Err(err) => HttpResponse::InternalServerError().body(format!("there was an error getting user active donations: {}", err))
     }
 }
 
-#[get("/make_user_reserve")]
-async fn make_user_reserve(pool: web::Data<MySqlPool>, reserve_details: web::Query<ReserveDetails>) ->impl Responder{
-    let id = reserve_details.user_id;
+#[post("/user/{id}/reserve")]
+async fn make_user_reserve(pool: web::Data<MySqlPool>, path: web::Path<i32>, reserve_details: web::Json<ReserveDetails>) ->impl Responder{
+    let id = path.into_inner();
     match check_if_user_has_reserve(&pool, id.clone()).await {
         Ok(has) => {
             if has {
@@ -239,22 +260,26 @@ async fn make_user_reserve(pool: web::Data<MySqlPool>, reserve_details: web::Que
     }
 }
 
-#[get("/cancel_reserve")]
-async fn cancel_reserve(pool: web::Data<MySqlPool>, reserve_details: web::Json<ReserveDetails>) -> impl Responder{
-    match edit_reservation(&pool, reserve_details.into_inner()).await {
+#[delete("/user/{id}/reserve")]
+async fn cancel_reserve(pool: web::Data<MySqlPool>, path: web::Path<i32>, reserve_details: web::Json<ReserveDetails>) -> impl Responder{
+    let user_id = path.into_inner();
+    let reserve = ReserveDetails {
+        food_id: reserve_details.food_id,
+        user_id
+    };
+    match edit_reservation(&pool, reserve).await { 
         Ok(_) => HttpResponse::Ok().body("reservation cancelled"),
-        Err(err) => HttpResponse::InternalServerError().body(format!("there was an error: {}", err))
+    Err(err) => HttpResponse::InternalServerError().body(format!("there was an error: {}", err))
     }
 }
 
-#[get("/get_user_active_reserve")]
-async fn get_user_active_reserve(pool: web::Data<MySqlPool>, user_info: web::Query<UserId>) -> impl Responder{
-    match get_active_reserve(&pool, user_info.user_id).await {
+#[get("/user/{id}/reserve/")]
+async fn get_user_active_reserve(pool: web::Data<MySqlPool>, path: web::Path<i32>) -> impl Responder{
+    let user_id = path.into_inner();
+    match get_active_reserve(&pool, user_id).await {
         Ok(active_reserve) => HttpResponse::Ok().json(active_reserve),
         Err(err) => HttpResponse::InternalServerError().body(format!("error getting active reservation: {}", err))
     }
 }
-
-// TODO: make in a way to return the reservation details to the frontend when the user makes a reservation
 
 // App mobile in Compose Multiplatform (AMCM)

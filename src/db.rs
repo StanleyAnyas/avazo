@@ -99,10 +99,15 @@ pub struct PictureDetails{
     pub user_id: i32, 
     pub profile_image: Option<String>
 }
+#[derive(serde::Deserialize, serde::Serialize)]
+pub struct PicturePayload{
+    pub profile_image: Option<String>
+}
 
 #[derive(serde::Deserialize, serde::Serialize)]
 pub struct UserCodeDetails{
     pub user_code: String, 
+    pub user_id: i32,
     pub user_email: String
 }
 
@@ -252,9 +257,9 @@ pub async fn edit_profile_picture(pool: &MySqlPool, picture: &PictureDetails) ->
 pub async fn verify_user_code(pool: &MySqlPool, user_code: &UserCodeDetails) -> Result<bool, sqlx::Error> {
     let code_db = sqlx::query!(
         r#"
-            SELECT code_pass FROM users WHERE email = ?
+            SELECT code_pass FROM users WHERE id = ?
         "#,
-        user_code.user_email
+        user_code.user_id
     ).fetch_one(pool).await?;
 
     Ok(check_code(&user_code.user_code, code_db.code_pass.expect("REASON")))
@@ -282,13 +287,24 @@ pub async fn delete_verification_code(pool: &MySqlPool,  user_email: &String) ->
     Ok(())
 }
 
-pub async fn add_user_code(pool: &MySqlPool, code: String, user_email: &String) -> Result<(), sqlx::Error>{
+pub async fn get_user_email(pool: &MySqlPool, id: &i32) ->Result<String, sqlx::Error>{
+    let record = sqlx::query!(
+        r#"
+            SELECT email from users WHERE id = ?
+        "#,
+        id
+    ).fetch_one(pool).await?;
+
+    Ok(record.email)
+}
+
+pub async fn add_user_code(pool: &MySqlPool, code: String, user_id: i32) -> Result<(), sqlx::Error>{
     sqlx::query!(
         r#"
-            UPDATE users SET code_pass = ? WHERE email = ?
+            UPDATE users SET code_pass = ? WHERE id = ?
         "#, 
         code,
-        user_email
+        user_id
     ).execute( pool).await?;
 
     Ok(())
