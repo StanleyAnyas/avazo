@@ -18,7 +18,7 @@ struct MajesticRes{
     user_email: String
 }
 
-#[get("/food")] // tested
+#[get("/foods")] // tested
 async fn get_food_list(pool: web::Data<MySqlPool>) -> impl Responder{
     match get_all_food(&pool).await {
         Ok(food) => HttpResponse::Ok().json(food),
@@ -26,7 +26,7 @@ async fn get_food_list(pool: web::Data<MySqlPool>) -> impl Responder{
     }
 }
 
-#[post("/food")] //tested
+#[post("/foods")] //tested
 async fn add_food(pool: web::Data<MySqlPool>, food: web::Json<FoodDetail>) -> impl Responder{
     let food_data = food.into_inner();
     match insert_food(&pool, &food_data).await {
@@ -42,7 +42,7 @@ async fn add_food(pool: web::Data<MySqlPool>, food: web::Json<FoodDetail>) -> im
     } 
 }
 
-#[post("/user")] //tested
+#[post("/users")] //tested
 async fn add_user(pool: web::Data<MySqlPool>, user_details: web::Json<NewUserDetails>) -> impl Responder{
     let user_data = user_details.into_inner();
     match check_if_email_exists(&pool, user_data.email.clone()).await {
@@ -53,7 +53,6 @@ async fn add_user(pool: web::Data<MySqlPool>, user_details: web::Json<NewUserDet
                     Err(err) => HttpResponse::InternalServerError().body(format!("There was an error {}", err))
                 }
             }else{
-                // HttpResponse::InternalServerError().body("email already in use")
                 HttpResponse::Conflict().body("email already exists")
             }
         }
@@ -62,7 +61,7 @@ async fn add_user(pool: web::Data<MySqlPool>, user_details: web::Json<NewUserDet
     
 }
 
-#[delete("/food/{food_id}")]
+#[delete("/foods/{food_id}")]
 async fn delete_food_handler(pool: web::Data<MySqlPool>, path: web::Path<FoodId>) -> impl Responder{
     let food_id = path.into_inner();
     match delete_food(&pool, food_id.food_id).await {
@@ -87,7 +86,7 @@ async fn login_user_handler(pool: web::Data<MySqlPool>, user: web::Json<LoginDet
     }
 }
 
-#[patch("/user/{user_id}/picture")]
+#[patch("/users/{user_id}/picture")]
 async  fn edit_profile_pic(pool: web::Data<MySqlPool>, path: web::Path<i32>, payload: web::Json<PicturePayload>) -> impl Responder{ 
     let user_id = path.into_inner();
     let profile_image = payload.profile_image.clone();
@@ -98,7 +97,7 @@ async  fn edit_profile_pic(pool: web::Data<MySqlPool>, path: web::Path<i32>, pay
     }
 }
 
-#[post("/user/{user_id}/verify")]
+#[post("/users/{user_id}/verify")]
 async fn verify_code(pool: web::Data<MySqlPool>, path: web::Path<i32>, code: web::Json<UserCodeDetails>) -> impl Responder{
     let user_id = path.into_inner();
     let details = UserCodeDetails{
@@ -127,7 +126,7 @@ async fn verify_code(pool: web::Data<MySqlPool>, path: web::Path<i32>, code: web
 }
 
 
-#[post("/user/{user_id}/mail")]
+#[post("/users/{user_id}/mail")]
 async fn send_verify_mail(pool: web::Data<MySqlPool>, path: web::Path<i32>) -> impl Responder{
     let code = generate_code();
 
@@ -147,10 +146,9 @@ async fn send_verify_mail(pool: web::Data<MySqlPool>, path: web::Path<i32>) -> i
         }
         Err(err) => HttpResponse::InternalServerError().body(format!("there was error verifying user email: {}", err))
     } 
-   
 }
 
-#[delete("/user/{id}/profile")]
+#[delete("/users/{id}/profile")]
 async fn delete_user(pool: web::Data<MySqlPool>, path: web::Path<i32>, user_details: web::Json<MajesticRes>) -> impl Responder{
     let id = path.into_inner();
     let user_mail = user_details.user_email.clone();
@@ -166,7 +164,7 @@ async fn delete_user(pool: web::Data<MySqlPool>, path: web::Path<i32>, user_deta
 }
 
 
-#[patch("/user/{id}/profile")]
+#[patch("/users/{id}/profile")]
 async fn edit_profile(pool: web::Data<MySqlPool>, path: web::Path<i32>, user_edit_details: web::Json<EditUserDetails>) -> impl Responder {
     
     let user_id = path.into_inner();
@@ -193,7 +191,7 @@ async fn edit_profile(pool: web::Data<MySqlPool>, path: web::Path<i32>, user_edi
     }
 }
 
-#[get("/user/{id}/donations")]
+#[get("/users/{id}/donations")]
 async fn get_donations(pool: web::Data<MySqlPool>, path: web::Path<i32>) -> impl Responder {
     let user_id = path.into_inner();
     match get_all_donations(&pool, user_id).await {
@@ -202,7 +200,7 @@ async fn get_donations(pool: web::Data<MySqlPool>, path: web::Path<i32>) -> impl
     }
 }
 
-#[get("/user/{id}/reservations")]
+#[get("/users/{id}/reservations")]
 async fn get_reserves(pool: web::Data<MySqlPool>, path: web::Path<i32>) -> impl Responder{
     let user_id = path.into_inner();
     match get_user_reservations(&pool, user_id).await {
@@ -213,7 +211,7 @@ async fn get_reserves(pool: web::Data<MySqlPool>, path: web::Path<i32>) -> impl 
     }
 }
 
-#[patch("/donation")]
+#[patch("/donations")]
 async fn edit_donation(pool: web::Data<MySqlPool>, food_edit_details: web::Json<FoodDetail2>) -> impl Responder {
     let food_edit_details = food_edit_details.into_inner();
     match update_donation(&pool, &food_edit_details).await {
@@ -231,7 +229,7 @@ async fn get_user_active_donations(pool: web::Data<MySqlPool>, path: web::Path<i
     }
 }
 
-#[post("/user/{id}/reserve")]
+#[post("/users/{id}/reserve")]
 async fn make_user_reserve(pool: web::Data<MySqlPool>, path: web::Path<i32>, reserve_details: web::Json<ReserveDetails>) ->impl Responder{
     let id = path.into_inner();
     match check_if_user_has_reserve(&pool, id.clone()).await {
@@ -260,7 +258,7 @@ async fn make_user_reserve(pool: web::Data<MySqlPool>, path: web::Path<i32>, res
     }
 }
 
-#[delete("/user/{id}/reserve")]
+#[delete("/users/{id}/reserve")]
 async fn cancel_reserve(pool: web::Data<MySqlPool>, path: web::Path<i32>, reserve_details: web::Json<ReserveDetails>) -> impl Responder{
     let user_id = path.into_inner();
     let reserve = ReserveDetails {
@@ -273,7 +271,7 @@ async fn cancel_reserve(pool: web::Data<MySqlPool>, path: web::Path<i32>, reserv
     }
 }
 
-#[get("/user/{id}/reserve/")]
+#[get("/users/{id}/reserve")]
 async fn get_user_active_reserve(pool: web::Data<MySqlPool>, path: web::Path<i32>) -> impl Responder{
     let user_id = path.into_inner();
     match get_active_reserve(&pool, user_id).await {
