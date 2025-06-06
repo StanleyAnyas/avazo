@@ -93,6 +93,19 @@ pub struct UserDetails{
     email_verified: Option<i8>,
     pub password_hash: String
 }
+
+#[derive(serde::Serialize, Deserialize)]
+pub struct GetUserDetails{
+    id: Option<i32>,
+    email: Option<String>,
+    first_name: Option<String>,
+    last_name: Option<String>,
+    num_of_food_added: Option<i32>,
+    num_of_food_taken: Option<i32>,
+    profile_image: Option<String>,
+    email_verified: Option<i8>,
+}
+
 // #[serde_as]
 #[derive(serde::Deserialize, serde::Serialize)]
 pub struct PictureDetails{
@@ -498,3 +511,31 @@ pub async fn edit_reservation(pool: &MySqlPool, reserve_details: ReserveDetails)
 
     Ok(())
 }
+
+pub async fn get_user_profile(pool: &MySqlPool, user_id: i32) -> Result<GetUserDetails, sqlx::Error>{
+    let user_details = sqlx::query_as!(
+        GetUserDetails,
+        r#"
+            SELECT id, email, first_name, last_name, num_of_food_added,
+            num_of_food_taken, TO_BASE64(profile_image) AS profile_image, email_verified FROM users
+            WHERE id = ?
+        "#,
+        user_id
+    ).fetch_one(pool).await?;
+
+    Ok(user_details)
+}
+
+pub async fn get_food_detail(pool: &MySqlPool, food_id: i32) -> Result<Food, sqlx::Error>{
+    let food_details = sqlx::query_as!(
+        Food,
+        r#"
+            SELECT id, title, description, is_free, pickup_time, pickup_address, user_id,
+            TO_BASE64(image) AS image, status
+            FROM foods WHERE id = ?
+        "#,
+        food_id
+    ).fetch_one(pool).await?;
+
+    Ok(food_details)
+} 

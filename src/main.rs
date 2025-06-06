@@ -52,6 +52,8 @@ async fn server() -> std::io::Result<()>{
         .service(handlers::edit_profile)
         .service(handlers::make_user_reserve)
         .service(handlers::get_reserves)
+        .service(handlers::get_user_profile_details)
+        .service(handlers::get_food_profile_details)
     })
     .bind(addrs)?
     .workers(NUM)

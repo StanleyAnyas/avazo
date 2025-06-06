@@ -3,7 +3,7 @@ use actix_web::{delete, get, patch, post, web::{self}, HttpResponse, Responder};
 // use rand::rand_core::impls;
 // use rand::rand_core::impls;
 use sqlx::{MySqlPool};
-use crate::{db::{add_user_code, change_email_verified, check_if_email_exists, check_if_user_has_reserve, create_new_user, delete_food, delete_user_account, delete_verification_code, edit_profile_picture, edit_reservation, edit_user_profile, get_active_donation, get_active_reserve, get_all_donations, get_all_food, get_reservation_details, get_user_email, get_user_reservations, increment_user_food_count, insert_food, login_user, make_reserve, mark_user_reserve, update_donation, update_verified, verify_user_code, EditUserDetails, FoodDetail, FoodDetail2, LoginDetail, NewUserDetails, PictureDetails, PicturePayload, ReserveDetails, UserCodeDetails}, functions::{compare_password, generate_code, send_goodbye_mail, send_mail}};
+use crate::{db::{add_user_code, change_email_verified, check_if_email_exists, check_if_user_has_reserve, create_new_user, delete_food, delete_user_account, delete_verification_code, edit_profile_picture, edit_reservation, edit_user_profile, get_active_donation, get_active_reserve, get_all_donations, get_all_food, get_food_detail, get_reservation_details, get_user_email, get_user_profile, get_user_reservations, increment_user_food_count, insert_food, login_user, make_reserve, mark_user_reserve, update_donation, update_verified, verify_user_code, EditUserDetails, FoodDetail, FoodDetail2, LoginDetail, NewUserDetails, PictureDetails, PicturePayload, ReserveDetails, UserCodeDetails}, functions::{compare_password, generate_code, send_goodbye_mail, send_mail}};
 
 #[derive(serde::Deserialize)]
 struct FoodId{
@@ -83,6 +83,24 @@ async fn login_user_handler(pool: web::Data<MySqlPool>, user: web::Json<LoginDet
         }
         Ok(None) => HttpResponse::Unauthorized().body("incorrect password"),
         Err(err) => HttpResponse::InternalServerError().body(format!("There was an error: {}", err))
+    }
+}
+
+#[get("/users/{id}")]
+async fn get_user_profile_details(pool: web::Data<MySqlPool>, path: web::Path<i32>) -> impl Responder{
+    let user_id = path.into_inner();
+    match get_user_profile(&pool, user_id).await {
+        Ok(user_details) => HttpResponse::Ok().json(user_details),
+        Err(err) => HttpResponse::InternalServerError().body(format!("There was an error getting user details: {}", err))
+    }
+}
+
+#[get("/foods/{id}")]
+async fn get_food_profile_details(pool: web::Data<MySqlPool>, path: web::Path<i32>) -> impl Responder{
+    let food_id = path.into_inner();
+    match get_food_detail(&pool, food_id).await {
+        Ok(food_details) => HttpResponse::Ok().json(food_details),
+        Err(err) => HttpResponse::InternalServerError().body(format!("There was an error getting user details: {}", err))
     }
 }
 
