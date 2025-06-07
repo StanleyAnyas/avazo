@@ -3,7 +3,7 @@ use actix_web::{delete, get, patch, post, web::{self}, HttpResponse, Responder};
 // use rand::rand_core::impls;
 // use rand::rand_core::impls;
 use sqlx::{MySqlPool};
-use crate::{db::{add_user_code, change_email_verified, check_if_email_exists, check_if_user_has_reserve, create_new_user, delete_food, delete_user_account, delete_verification_code, edit_profile_picture, edit_reservation, edit_user_profile, get_active_donation, get_active_reserve, get_all_donations, get_all_food, get_food_detail, get_reservation_details, get_user_email, get_user_profile, get_user_reservations, increment_user_food_count, insert_food, login_user, make_reserve, mark_user_reserve, update_donation, update_verified, verify_user_code, EditUserDetails, FoodDetail, FoodDetail2, LoginDetail, NewUserDetails, PictureDetails, PicturePayload, ReserveDetails, UserCodeDetails}, functions::{compare_password, generate_code, send_goodbye_mail, send_mail}};
+use crate::{db::{add_user_code, change_email_verified, check_if_email_exists, check_if_user_has_reserve, create_new_user, delete_food, delete_user_account, delete_verification_code, edit_profile_picture, edit_reservation, edit_user_profile, get_active_donation, get_active_reserve, get_all_donations, get_all_food, get_email, get_food_detail, get_reservation_details, get_user_email, get_user_profile, get_user_reservations, increment_user_food_count, insert_food, login_user, make_reserve, mark_user_reserve, update_donation, update_verified, verify_user_code, EditUserDetails, FoodDetail, FoodDetail2, LoginDetail, NewUserDetails, PictureDetails, PicturePayload, ReserveDetails, UserCodeDetails}, functions::{compare_password, generate_code, send_goodbye_mail, send_mail}};
 
 #[derive(serde::Deserialize)]
 struct FoodId{
@@ -14,8 +14,8 @@ struct FoodId{
 //     user_id: i32
 // }
 #[derive(serde::Deserialize, serde::Serialize)]
-struct MajesticRes{
-    user_email: String
+pub struct MajesticRes{
+    pub user_email: String
 }
 
 #[get("/foods")] // tested
@@ -61,7 +61,7 @@ async fn add_user(pool: web::Data<MySqlPool>, user_details: web::Json<NewUserDet
     
 }
 
-#[delete("/foods/{food_id}")]
+#[delete("/foods/{food_id}")] // tested
 async fn delete_food_handler(pool: web::Data<MySqlPool>, path: web::Path<FoodId>) -> impl Responder{
     let food_id = path.into_inner();
     match delete_food(&pool, food_id.food_id).await {
@@ -86,7 +86,7 @@ async fn login_user_handler(pool: web::Data<MySqlPool>, user: web::Json<LoginDet
     }
 }
 
-#[get("/users/{id}")]
+#[get("/users/{id}")] // tested
 async fn get_user_profile_details(pool: web::Data<MySqlPool>, path: web::Path<i32>) -> impl Responder{
     let user_id = path.into_inner();
     match get_user_profile(&pool, user_id).await {
@@ -95,7 +95,7 @@ async fn get_user_profile_details(pool: web::Data<MySqlPool>, path: web::Path<i3
     }
 }
 
-#[get("/foods/{id}")]
+#[get("/foods/{id}")] //tested
 async fn get_food_profile_details(pool: web::Data<MySqlPool>, path: web::Path<i32>) -> impl Responder{
     let food_id = path.into_inner();
     match get_food_detail(&pool, food_id).await {
@@ -104,7 +104,7 @@ async fn get_food_profile_details(pool: web::Data<MySqlPool>, path: web::Path<i3
     }
 }
 
-#[patch("/users/{user_id}/picture")]
+#[patch("/users/{user_id}/picture")] // tested
 async  fn edit_profile_pic(pool: web::Data<MySqlPool>, path: web::Path<i32>, payload: web::Json<PicturePayload>) -> impl Responder{ 
     let user_id = path.into_inner();
     let profile_image = payload.profile_image.clone();
@@ -115,7 +115,7 @@ async  fn edit_profile_pic(pool: web::Data<MySqlPool>, path: web::Path<i32>, pay
     }
 }
 
-#[post("/users/{user_id}/verify")]
+#[post("/users/{user_id}/verify")] // tested
 async fn verify_code(pool: web::Data<MySqlPool>, path: web::Path<i32>, code: web::Json<UserCodeDetails>) -> impl Responder{
     let user_id = path.into_inner();
     let details = UserCodeDetails{
@@ -144,7 +144,7 @@ async fn verify_code(pool: web::Data<MySqlPool>, path: web::Path<i32>, code: web
 }
 
 
-#[post("/users/{user_id}/mail")]
+#[post("/users/{user_id}/mail")] // tested
 async fn send_verify_mail(pool: web::Data<MySqlPool>, path: web::Path<i32>) -> impl Responder{
     let code = generate_code();
 
@@ -166,7 +166,7 @@ async fn send_verify_mail(pool: web::Data<MySqlPool>, path: web::Path<i32>) -> i
     } 
 }
 
-#[delete("/users/{id}/profile")]
+#[delete("/users/{id}/profile")] //tested
 async fn delete_user(pool: web::Data<MySqlPool>, path: web::Path<i32>, user_details: web::Json<MajesticRes>) -> impl Responder{
     let id = path.into_inner();
     let user_mail = user_details.user_email.clone();
@@ -182,7 +182,7 @@ async fn delete_user(pool: web::Data<MySqlPool>, path: web::Path<i32>, user_deta
 }
 
 
-#[patch("/users/{id}/profile")]
+#[patch("/users/{id}/profile")] // tested
 async fn edit_profile(pool: web::Data<MySqlPool>, path: web::Path<i32>, user_edit_details: web::Json<EditUserDetails>) -> impl Responder {
     
     let user_id = path.into_inner();
@@ -191,25 +191,30 @@ async fn edit_profile(pool: web::Data<MySqlPool>, path: web::Path<i32>, user_edi
         first_name: user_edit_details.first_name.clone(),
         last_name: user_edit_details.last_name.clone(),
         email: user_edit_details.email.clone(),
-        email_was_changed: user_edit_details.email_was_changed
     };
-    
-    match edit_user_profile(&pool, &user_edit).await {
-        Ok(_) => {
-            if user_edit_details.email_was_changed {
-                match change_email_verified(&pool, &user_edit_details.email).await {
-                    Ok(_) => HttpResponse::Ok().json(user_edit_details),
-                    Err(err) => HttpResponse::InternalServerError().body(format!("there was an error {}", err))
+
+    match get_email(&pool, &user_id, &user_edit.email).await {
+        Ok(is_same) =>{
+            match edit_user_profile(&pool, &user_edit).await {
+                Ok(_) => {
+                    if !is_same {
+                        match change_email_verified(&pool, &user_edit_details.email).await {
+                            Ok(_) => HttpResponse::Ok().json(user_edit_details),
+                            Err(err) => HttpResponse::InternalServerError().body(format!("there was an error {}", err))
+                        }
+                    }else{
+                        return HttpResponse::Ok().json(user_edit_details)
+                    }
                 }
-            }else{
-                return HttpResponse::Ok().json(user_edit_details)
+                Err(err) => HttpResponse::InternalServerError().body(format!("there was an error: {}", err))
             }
         }
         Err(err) => HttpResponse::InternalServerError().body(format!("there was an error: {}", err))
     }
+   
 }
 
-#[get("/users/{id}/donations")]
+#[get("/users/{id}/donations")] // tested
 async fn get_donations(pool: web::Data<MySqlPool>, path: web::Path<i32>) -> impl Responder {
     let user_id = path.into_inner();
     match get_all_donations(&pool, user_id).await {
@@ -218,7 +223,7 @@ async fn get_donations(pool: web::Data<MySqlPool>, path: web::Path<i32>) -> impl
     }
 }
 
-#[get("/users/{id}/reservations")]
+#[get("/users/{id}/reservations")] // tested
 async fn get_reserves(pool: web::Data<MySqlPool>, path: web::Path<i32>) -> impl Responder{
     let user_id = path.into_inner();
     match get_user_reservations(&pool, user_id).await {
@@ -229,7 +234,7 @@ async fn get_reserves(pool: web::Data<MySqlPool>, path: web::Path<i32>) -> impl 
     }
 }
 
-#[patch("/donations")]
+#[patch("/donations")] // tested
 async fn edit_donation(pool: web::Data<MySqlPool>, food_edit_details: web::Json<FoodDetail2>) -> impl Responder {
     let food_edit_details = food_edit_details.into_inner();
     match update_donation(&pool, &food_edit_details).await {
@@ -238,7 +243,7 @@ async fn edit_donation(pool: web::Data<MySqlPool>, food_edit_details: web::Json<
     }
 }
 
-#[get("/donations/{id}/active")]
+#[get("/donations/{id}/active")] // tested
 async fn get_user_active_donations(pool: web::Data<MySqlPool>, path: web::Path<i32>) -> impl Responder{
     let user_id = path.into_inner();
     match get_active_donation(&pool, user_id).await {
@@ -247,7 +252,7 @@ async fn get_user_active_donations(pool: web::Data<MySqlPool>, path: web::Path<i
     }
 }
 
-#[post("/users/{id}/reserve")]
+#[post("/users/{id}/reserve")] // tested
 async fn make_user_reserve(pool: web::Data<MySqlPool>, path: web::Path<i32>, reserve_details: web::Json<ReserveDetails>) ->impl Responder{
     let id = path.into_inner();
     match check_if_user_has_reserve(&pool, id.clone()).await {
@@ -276,7 +281,7 @@ async fn make_user_reserve(pool: web::Data<MySqlPool>, path: web::Path<i32>, res
     }
 }
 
-#[delete("/users/{id}/reserve")]
+#[delete("/users/{id}/reserve")] // tested
 async fn cancel_reserve(pool: web::Data<MySqlPool>, path: web::Path<i32>, reserve_details: web::Json<ReserveDetails>) -> impl Responder{
     let user_id = path.into_inner();
     let reserve = ReserveDetails {
@@ -289,7 +294,7 @@ async fn cancel_reserve(pool: web::Data<MySqlPool>, path: web::Path<i32>, reserv
     }
 }
 
-#[get("/users/{id}/reserve")]
+#[get("/users/{id}/reserve")] // tested
 async fn get_user_active_reserve(pool: web::Data<MySqlPool>, path: web::Path<i32>) -> impl Responder{
     let user_id = path.into_inner();
     match get_active_reserve(&pool, user_id).await {

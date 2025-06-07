@@ -24,6 +24,10 @@ pub fn compare_password(inputted_password: &str, db_password: &str) -> bool {
     }
 }
 
+pub fn compare_email(inputted_email:&str, db_email: &str) -> bool {
+    inputted_email.to_string().eq(db_email)
+}
+
 pub fn generate_code() -> String {
     let mut rng = rand::rng();
     let code = rng.random_range(100_000..1_000_000);

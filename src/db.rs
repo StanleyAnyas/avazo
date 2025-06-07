@@ -1,7 +1,8 @@
 
 use serde::Deserialize;
 use sqlx::{FromRow, MySqlPool};
-use crate::functions::{check_code, hash_password};
+use crate::functions::{check_code, compare_email, hash_password};
+use crate::handlers::MajesticRes;
 // use serde_with::{serde_as, base64::Base64};
 
 #[derive(Debug, FromRow, serde::Deserialize, serde::Serialize)]
@@ -130,7 +131,6 @@ pub struct EditUserDetails{
     pub first_name: String,
     pub last_name: String,
     pub email: String,
-    pub email_was_changed: bool
 }
 
 #[derive(serde::Deserialize, serde::Serialize, FromRow, Debug,)]
@@ -539,3 +539,15 @@ pub async fn get_food_detail(pool: &MySqlPool, food_id: i32) -> Result<Food, sql
 
     Ok(food_details)
 } 
+
+pub async fn get_email(pool: &MySqlPool, user_id: &i32, inputted_email: &str) ->Result<bool, sqlx::Error>{
+    let user_email = sqlx::query_as!(
+        MajesticRes,
+        r#"
+            SELECT email AS user_email FROM users WHERE id = ?
+        "#,
+        user_id
+    ).fetch_one(pool).await?;
+
+    Ok(compare_email(inputted_email, &user_email.user_email))
+}
