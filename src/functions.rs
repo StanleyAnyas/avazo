@@ -1,11 +1,16 @@
+use actix_web::HttpResponse;
 use argon2::{Argon2, PasswordHash, PasswordHasher, PasswordVerifier};
 use argon2::password_hash::SaltString;
+// use lettre::message;
 use rand_core::OsRng;
 use rand::{self, Rng};
 use lettre::{Message, SmtpTransport, Transport, message::header::ContentType};
 use lettre::transport::smtp::authentication::Credentials;
+use serde::Serialize;
 use std::env;
 use dotenvy::dotenv;
+
+use crate::db::ApiResponse;
 
 pub fn hash_password(password: String) -> String {
     let salt = SaltString::generate(&mut OsRng);
@@ -116,4 +121,24 @@ pub async fn send_goodbye_mail(user_mail: String) -> Result<(), Box<dyn std::err
     mailer.send(&email)?;
 
     Ok(())
+}
+
+pub fn success<T: Serialize>(message: &str, data: T) -> HttpResponse{
+    HttpResponse::Ok().json(
+        ApiResponse{
+            success: true,
+            message: message.to_string(),
+            data: Some(data)
+        }
+    )
+}
+
+pub fn failure(messages: String) -> HttpResponse{
+    HttpResponse::InternalServerError().json(
+        ApiResponse::<()> {
+            success: false,
+            message: messages,
+            data: None
+        }
+    )
 }

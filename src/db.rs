@@ -113,6 +113,7 @@ pub struct PictureDetails{
     pub user_id: i32, 
     pub profile_image: Option<String>
 }
+
 #[derive(serde::Deserialize, serde::Serialize)]
 pub struct PicturePayload{
     pub profile_image: Option<String>
@@ -146,6 +147,12 @@ pub struct ReservationDetails{
     food_id: i32,
     reserved_at: Option<String>,
     status: Option<String>
+}
+
+#[derive(serde::Serialize)] pub struct ApiResponse<T>{
+    pub success: bool,
+    pub message: String,
+    pub data: Option<T>
 }
 
 pub async fn insert_food(pool: &MySqlPool, food: &FoodDetail) -> Result<u64, sqlx::Error>{
